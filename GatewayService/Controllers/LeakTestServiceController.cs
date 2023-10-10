@@ -18,11 +18,9 @@ public class LeakTestServiceController : ControllerBase
     }
 
     [HttpGet("test")]
-    public async Task<IActionResult> Test()
+    public string Test()
     {
-        _leakTestProducer.SendMessage("hej");
-
-        return Ok();
+        return "hej"; 
     }
     
     [HttpPost]
@@ -43,4 +41,6 @@ public class LeakTestServiceController : ControllerBase
             return BadRequest($"The request could not be processed due to: {e.Message}");
         }
     }
+    
+    
 }
