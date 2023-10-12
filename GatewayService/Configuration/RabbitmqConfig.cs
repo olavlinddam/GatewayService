@@ -9,7 +9,6 @@ public class RabbitMqConfig
     public string Port { get; set; }
     public string ClientProvidedName { get; set; }
     public string ExchangeName { get; set; }
-    public string RoutingKey { get; set; }
     public string RequestQueue { get; set; }
     public string ResponseQueue { get; set; }
 }

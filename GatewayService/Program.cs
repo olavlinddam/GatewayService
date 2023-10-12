@@ -1,6 +1,5 @@
-
-
 using GatewayService.Configuration;
+using GatewayService.Services;
 using GatewayService.StartUp;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,6 +12,8 @@ builder.Host.ConfigureAppSettings();
 
 // Add services to the container. First we add the InfluxDbConfig to the dependency injection container. 
 builder.Services.Configure<LeakTestServiceConfig>(builder.Configuration.GetSection("RabbitMqConfigurations:LeakTestServiceConfig"));
+builder.Services.AddSingleton<IProducer, LeakTestProducer>();
+builder.Services.AddSingleton<IConsumer, LeakTestConsumer>();
 
 
 builder.Services.AddControllers();
