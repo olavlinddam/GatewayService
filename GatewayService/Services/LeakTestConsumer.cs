@@ -1,5 +1,6 @@
 using System.Text;
 using GatewayService.Configuration;
+using GatewayService.Models;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
@@ -10,12 +11,12 @@ public class LeakTestConsumer : IConsumer, IDisposable
 {
     private readonly LeakTestServiceConfig _config;
     private readonly IModel _channel;
-    private readonly QueueDeclareOk _replyQueue;
+    private readonly PendingRequestManager _pendingRequestManager;
 
-
-    public LeakTestConsumer(IOptions<LeakTestServiceConfig> config)
+    public LeakTestConsumer(IOptions<LeakTestServiceConfig> config, PendingRequestManager pendingRequestManager)
     {
         _config = config.Value;
+        _pendingRequestManager = pendingRequestManager;
         
         var factory = new ConnectionFactory
         {
@@ -30,30 +31,37 @@ public class LeakTestConsumer : IConsumer, IDisposable
         var connection = factory.CreateConnection();
         _channel = connection.CreateModel();
         
-        _replyQueue = _channel.QueueDeclare
-        (
-            queue: "leaktest-request-queue", 
-            durable: false, 
-            exclusive: false, 
-            autoDelete: false, 
-            arguments: null
-        );
+
+        //_channel.QueueDeclare("leaktest-response-queue", exclusive: false); // potentielt problem her?
     }
     
-    public void Listen()
+    public void StartListening()
     {
-        var consumer = new AsyncEventingBasicConsumer(_channel);
-        
-        consumer.Received += async (model, ea) =>
+        var consumer = new EventingBasicConsumer(_channel);
+    
+        consumer.Received += (model, ea) =>
         {
-            var body = ea.Body.ToArray();
-            var reply = Encoding.UTF8.GetString(body);
-            Console.WriteLine($"Received new message: {reply}");
-            
-            _channel.BasicAck(deliveryTag: ea.DeliveryTag, multiple: false);
+            try
+            {
+                var body = ea.Body.ToArray();
+                var response = Encoding.UTF8.GetString(body);
+                var correlationId = ea.BasicProperties.CorrelationId;
+
+                _pendingRequestManager.TryCompleteRequest(correlationId, response);
+
+                if (!ea.Redelivered)
+                {
+                    _channel.BasicAck(deliveryTag: ea.DeliveryTag, multiple: false);  // Manuelt acknowledgment
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error processing message: {ex.Message}");
+                _channel.BasicNack(deliveryTag: ea.DeliveryTag, multiple: false, requeue: true);  // Nack beskeden, så den kan blive behandlet igen
+            }
         };
-        _channel.BasicConsume(queue: _replyQueue.QueueName, autoAck: false, consumer: consumer);
     }
+
     
     public void Dispose()
     {

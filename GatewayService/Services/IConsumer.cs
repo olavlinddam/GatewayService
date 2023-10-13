@@ -1,6 +1,6 @@
 namespace GatewayService.Services;
 
-public interface IConsumer
+public interface IConsumer : IDisposable
 {
-    public void Listen();
+    public void StartListening();
 }

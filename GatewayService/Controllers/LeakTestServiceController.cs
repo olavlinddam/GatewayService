@@ -1,9 +1,10 @@
 using GatewayService.Configuration;
+using GatewayService.Models;
 using GatewayService.Services;
-using GatewayService.Services.LeakTestService.Producers;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using Newtonsoft.Json.Linq;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace GatewayService.Controllers;
 
@@ -12,12 +13,12 @@ namespace GatewayService.Controllers;
 public class LeakTestServiceController : ControllerBase
 {
     private readonly IProducer _leakTestProducer;
-    private readonly IConsumer _leakTestConsumer;
+    private readonly PendingRequestManager _pendingRequestManager;
 
-    public LeakTestServiceController(IOptions<LeakTestServiceConfig> configOptions)
+    public LeakTestServiceController(IOptions<LeakTestServiceConfig> configOptions, PendingRequestManager pendingRequestManager)
     {
+        _pendingRequestManager = pendingRequestManager;
         _leakTestProducer = new LeakTestProducer(configOptions);
-        _leakTestConsumer = new LeakTestConsumer(configOptions);
     }
 
     [HttpGet("test")]
@@ -26,18 +27,21 @@ public class LeakTestServiceController : ControllerBase
         return "hej"; 
     }
     
-    [HttpPost("AddSingleConsumer")]
+    [HttpPost("AddSingle")]
     public async Task<IActionResult> AddSingleAsync()
     {
-        string routingKey = "leaktest.add-single";
         try
         {
             using var reader = new StreamReader(Request.Body);
             var body = await reader.ReadToEndAsync();
-        
-            var leakTest = JObject.Parse(body);
-            _leakTestProducer.SendMessage(leakTest, routingKey);
-            return Ok();
+
+            var response = await _leakTestProducer.SendMessage(body);
+
+            using var doc = JsonDocument.Parse(response);
+            var formattedResponse = doc.RootElement.ToString();
+            
+            Console.WriteLine("in controller: " + formattedResponse);
+            return Ok(formattedResponse);
         }
         catch (Exception e)
         {
@@ -45,6 +49,8 @@ public class LeakTestServiceController : ControllerBase
             return BadRequest($"The request could not be processed due to: {e.Message}");
         }
     }
+
+
     
     [HttpPost("RabbitMqConsumer")]
     public async Task<IActionResult> AddSingleNoConsumerAsync()
@@ -55,8 +61,9 @@ public class LeakTestServiceController : ControllerBase
             using var reader = new StreamReader(Request.Body);
             var body = await reader.ReadToEndAsync();
         
-            var leakTest = JObject.Parse(body);
-            _leakTestProducer.SendMessage(leakTest, routingKey);
+            var leakTest = JsonSerializer.Deserialize<string>(body);
+            
+            _leakTestProducer.SendMessage(leakTest);
             return Ok();
         }
         catch (Exception e)

@@ -1,4 +1,5 @@
 using GatewayService.Configuration;
+using GatewayService.Models;
 using GatewayService.Services;
 using GatewayService.StartUp;
 
@@ -15,6 +16,8 @@ builder.Services.Configure<LeakTestServiceConfig>(builder.Configuration.GetSecti
 builder.Services.AddSingleton<IProducer, LeakTestProducer>();
 builder.Services.AddSingleton<IConsumer, LeakTestConsumer>();
 
+builder.Services.AddSingleton<PendingRequestManager>();
+builder.Services.AddHostedService<LeakTestListenerService>();
 
 builder.Services.AddControllers();
 
