@@ -36,12 +36,10 @@ public class LeakTestServiceController : ControllerBase
             var body = await reader.ReadToEndAsync();
 
             var response = await _leakTestProducer.SendMessage(body);
-
-            using var doc = JsonDocument.Parse(response);
-            var formattedResponse = doc.RootElement.ToString();
             
-            Console.WriteLine("in controller: " + formattedResponse);
-            return Ok(formattedResponse);
+            
+            Console.WriteLine("in controller: " + response);
+            return Ok(response);
         }
         catch (Exception e)
         {
