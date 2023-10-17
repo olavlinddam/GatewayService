@@ -29,18 +29,28 @@ public class LeakTestProducer : IProducer, IDisposable
 
         var connection = factory.CreateConnection();
         _channel = connection.CreateModel();
-        _channel.ExchangeDeclare("leaktest-exchange", "direct", durable: true, autoDelete: false, arguments: null);
-        _channel.QueueBind("leaktest-request-queue", "leaktest-exchange", "leaktest-request-queue");
+        _channel.ExchangeDeclare(_config.ExchangeName, "direct", durable: true, autoDelete: false, arguments: null);
     }
 
-    public Task<string> SendMessage<T>(T message)
+    public Task<string> SendMessage<T>(T message, string queueName, string routingKey)
     {
+        _channel.QueueBind(queueName, _config.ExchangeName, routingKey);
+
         var tcs = new TaskCompletionSource<string>();
         
         var replyQueue = _channel.QueueDeclare("", exclusive:true);
         
         // Preparing the message to be send
-        var json = JsonConvert.SerializeObject(message, Formatting.Indented);
+        string json;
+        if (message is Guid || (message is string strMessage && Guid.TryParse(strMessage, out _)))
+        {
+            json = message.ToString();
+        }
+        else
+        {
+            json = JsonConvert.SerializeObject(message, Formatting.Indented);
+        }
+        
         var requestBody = Encoding.UTF8.GetBytes(json);
 
         // Setting the properties required for the server to know how to reply to the request. 
@@ -51,14 +61,14 @@ public class LeakTestProducer : IProducer, IDisposable
         Console.WriteLine($"Sending request: {properties.CorrelationId}");
         
         _channel.BasicPublish(
-            exchange: "leaktest-exchange",
-            routingKey: "leaktest-request-queue", 
+            exchange: _config.ExchangeName,
+            routingKey: routingKey, 
             basicProperties: properties, 
             body: requestBody);
         
         // Log that we published a request here. 
         
-        _channel.QueueDeclare("leaktest-request-queue", exclusive:false);
+        _channel.QueueDeclare(queueName, exclusive:false);
         
         var consumer = new EventingBasicConsumer(_channel);
 
