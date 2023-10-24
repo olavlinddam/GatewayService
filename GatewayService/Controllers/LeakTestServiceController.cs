@@ -138,6 +138,102 @@ public class LeakTestServiceController : ControllerBase
         }
     }
     
+    [HttpGet("Tag")]
+    public async Task<IActionResult> GetByTagAsync(string key, string value)
+    {
+        const string queueName = "get-by-tag-requests";
+        const string routingKey = "get-by-tag-route";
+        
+        try
+        {
+            var response = await _leakTestProducer.SendMessage($"{key};{value}", queueName, routingKey);
+
+            var leakTests = JsonSerializer.Deserialize<List<LeakTestDto>>(response);
+
+
+            // Add HATEOAS links
+            leakTests?.ForEach(t =>
+            {
+                var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
+                t.Links = new Dictionary<string, string>()
+                {
+                    { "self", $"{baseUrl}/api/LeakTests/{t.LeakTestId}" }
+                };
+            });
+            
+            return Ok(leakTests);
+        }
+        catch (Exception e)
+        {
+            // Log the exception here
+            return BadRequest($"The request could not be processed due to: {e.Message}");
+        }
+    }
+    
+    [HttpGet("Field")]
+    public async Task<IActionResult> GetByFieldAsync(string key, string value)
+    {
+        const string queueName = "get-by-field-requests";
+        const string routingKey = "get-by-field-route";
+        
+        try
+        {
+            var response = await _leakTestProducer.SendMessage($"{key};{value}", queueName, routingKey);
+
+            var leakTests = JsonSerializer.Deserialize<List<LeakTestDto>>(response);
+
+
+            // Add HATEOAS links
+            leakTests?.ForEach(t =>
+            {
+                var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
+                t.Links = new Dictionary<string, string>()
+                {
+                    { "self", $"{baseUrl}/api/LeakTests/{t.LeakTestId}" }
+                };
+            });
+            
+            return Ok(leakTests);
+        }
+        catch (Exception e)
+        {
+            // Log the exception here
+            return BadRequest($"The request could not be processed due to: {e.Message}");
+        }
+    }
+    
+    [HttpGet("TimeFrame")]
+    public async Task<IActionResult> GetWithinTimeFrameAsync(string start, string stop)
+    {
+        const string queueName = "get-within-timeframe-requests";
+        const string routingKey = "get-within-timeframe-route";
+        
+        try
+        {
+            var response = await _leakTestProducer.SendMessage($"{start};{stop}", queueName, routingKey);
+
+            var leakTests = JsonSerializer.Deserialize<List<LeakTestDto>>(response);
+
+
+            // Add HATEOAS links
+            leakTests?.ForEach(t =>
+            {
+                var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
+                t.Links = new Dictionary<string, string>()
+                {
+                    { "self", $"{baseUrl}/api/LeakTests/{t.LeakTestId}" }
+                };
+            });
+            
+            return Ok(leakTests);
+        }
+        catch (Exception e)
+        {
+            // Log the exception here
+            return BadRequest($"The request could not be processed due to: {e.Message}");
+        }
+    }
+    
     
     
     public JObject AddValueToExistingProperty(string inputJson, string propertyName, string value)
