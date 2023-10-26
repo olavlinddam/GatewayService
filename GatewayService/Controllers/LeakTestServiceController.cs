@@ -16,14 +16,12 @@ namespace GatewayService.Controllers;
 
 [ApiController]
 [Route("api/LeakTests")]
-public class LeakTestServiceController : ControllerBase
+public class LeakTestServiceController : GatewayControllerBase
 {
     private readonly IProducer _leakTestProducer;
-    private readonly PendingRequestManager _pendingRequestManager;
 
-    public LeakTestServiceController(IOptions<LeakTestServiceConfig> configOptions, PendingRequestManager pendingRequestManager)
+    public LeakTestServiceController(IOptions<LeakTestServiceConfig> configOptions)
     {
-        _pendingRequestManager = pendingRequestManager;
         _leakTestProducer = new LeakTestProducer(configOptions);
     }
 
@@ -36,30 +34,55 @@ public class LeakTestServiceController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> AddSingleAsync([FromBody] LeakTestDto leakTestDto)
     {
+        const string queueName = "add-single-requests";
+        const string routingKey = "add-single-route";
         try
         {
-            var response = await _leakTestProducer.SendMessage(leakTestDto, "add-single-requests", "add-single-route");
+            var response = await _leakTestProducer.SendMessage(leakTestDto, queueName, routingKey);
+
+            leakTestDto.LeakTestId = Guid.Parse(response);
             
-            
+            var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
+            leakTestDto.Links = new Dictionary<string, string>()
+            {
+                { "self", $"{baseUrl}/api/LeakTests/{leakTestDto.LeakTestId}" }
+            };
+
             Console.WriteLine("in controller: " + response);
-            return Ok(response);
+            return CreatedAtAction(nameof(GetById), new { id = leakTestDto.LeakTestId }, leakTestDto);
         }
+        
+        catch (TimeoutException e)
+        {
+            const string? item = "Single test result"; // what was being processed
+            var id = leakTestDto.LeakTestId?.ToString() ?? "N/A"; // Using the ID if available, otherwise "N/A"
+
+            return TimedOutRequestWithDetails(e.Message, item, id);
+        }
+        
         catch (Exception e)
         {
             // Log the exception here
-            return BadRequest($"The request could not be processed due to: {e.Message}");
+    
+            const string? item = "Single test result"; // what was being processed
+            var id = leakTestDto.LeakTestId?.ToString() ?? "N/A"; // Using the ID if available, otherwise "N/A"
+    
+            return BadRequestWithDetails($"The request could not be processed due to: {e.Message}", item, id);
         }
     }
+
     
     [HttpPost("Batch")]
     public async Task<IActionResult> AddBatchAsync()
     {
+        const string queueName = "add-batch-requests";
+        const string routingKey = "add-batch-route";
         try
         {
             using var reader = new StreamReader(Request.Body);
             var body = await reader.ReadToEndAsync();
 
-            var response = await _leakTestProducer.SendMessage(body, "add-batch-requests", "add-batch-route");
+            var response = await _leakTestProducer.SendMessage(body, queueName, routingKey);
             
             
             Console.WriteLine("in controller: " + response);
@@ -77,17 +100,17 @@ public class LeakTestServiceController : ControllerBase
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id)
     {
-        const string routingKey = "GetById";
+        const string queueName = "get-by-id-requests";
+        const string routingKey = "get-by-id-route";
         try
         {
-            var response = await _leakTestProducer.SendMessage(id, "get-by-id-requests", "get-by-id-route");
+            var response = await _leakTestProducer.SendMessage(id, queueName, routingKey);
 
             var leakTest = JsonSerializer.Deserialize<LeakTestDto>(response);
 
             
             // Add HATEOAS links
             var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
-            var controllerName = ControllerContext.ActionDescriptor.ControllerName;
             if (leakTest != null)
             {
                 leakTest.Links = new Dictionary<string, string>()

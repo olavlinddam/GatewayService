@@ -17,6 +17,10 @@
     <ItemGroup>
       <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
       <PackageReference Include="RabbitMQ.Client" Version="6.6.0-beta.0" />
+
+
+
+
     </ItemGroup>
 
 

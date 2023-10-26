@@ -8,12 +8,12 @@ using RabbitMQ.Client.Events;
 
 namespace GatewayService.Services;
 
-public class LeakTestProducer : IProducer, IDisposable
+public class TestObjectProducer : IProducer, IDisposable
 {
-    private readonly LeakTestServiceConfig _config;
+    private readonly TestObjectServiceConfig _config;
     private readonly IModel _channel;
 
-    public LeakTestProducer(IOptions<LeakTestServiceConfig> config)
+    public TestObjectProducer(IOptions<TestObjectServiceConfig> config)
     {
         _config = config.Value;
 
@@ -32,12 +32,9 @@ public class LeakTestProducer : IProducer, IDisposable
         _channel.ExchangeDeclare(_config.ExchangeName, "direct", durable: true, autoDelete: false, arguments: null);
     }
 
-    public async Task<string> SendMessage<T>(T message, string queueName, string routingKey)
+    public Task<string> SendMessage<T>(T message, string queueName, string routingKey)
     {
-        // Declare the queue and set up the binding
-        _channel.QueueDeclare(queue: queueName, durable: true, exclusive: false, autoDelete: false, arguments: null);
-        _channel.QueueBind(queue: queueName, exchange: _config.ExchangeName, routingKey: routingKey);
-
+        _channel.QueueBind(queueName, _config.ExchangeName, routingKey);
 
         var tcs = new TaskCompletionSource<string>();
         
@@ -71,40 +68,22 @@ public class LeakTestProducer : IProducer, IDisposable
         
         // Log that we published a request here. 
         
-        //_channel.QueueDeclare(queueName, exclusive:false);
+        _channel.QueueDeclare(queueName, exclusive:false);
         
         var consumer = new EventingBasicConsumer(_channel);
 
         consumer.Received += (model, ea) =>
         {
-            if (ea.BasicProperties.CorrelationId == properties.CorrelationId)
-            {
-                var body = ea.Body.ToArray();
-                var response = Encoding.UTF8.GetString(body);
-                Console.WriteLine($"Reply Received: {response}");
-
-                _channel.BasicAck(deliveryTag: ea.DeliveryTag, multiple: false);
-                tcs.TrySetResult(response);
-            }
-            else
-            {
-                Console.WriteLine($"Received unmatched reply. Expected Correlation ID: {properties.CorrelationId}, Received: {ea.BasicProperties.CorrelationId}");
-                // Log the event here
-            }
+            var body = ea.Body.ToArray();
+            var response = Encoding.UTF8.GetString(body);
+            Console.WriteLine($"Reply Recieved: {response}");
+            
+            _channel.BasicAck(deliveryTag: ea.DeliveryTag, multiple: false);
+            tcs.SetResult(response);
         };
-
         
         _channel.BasicConsume(queue: replyQueue.QueueName, autoAck: false, consumer: consumer);
-        
-        var taskToWait = tcs.Task;
-        if (await Task.WhenAny(taskToWait, Task.Delay(TimeSpan.FromSeconds(2))) == taskToWait)
-        {
-            // Task completed within the timeout
-            return await taskToWait;
-        }
-        
-        // Timeout logic
-        throw new TimeoutException("The service is currently unavailable, please try again later.");
+        return tcs.Task;
     }
 
     public void Dispose()

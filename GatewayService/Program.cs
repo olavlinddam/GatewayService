@@ -14,11 +14,10 @@ builder.Host.ConfigureAppSettings();
 
 // Add services to the container. First we add the InfluxDbConfig to the dependency injection container. 
 builder.Services.Configure<LeakTestServiceConfig>(builder.Configuration.GetSection("RabbitMqConfigurations:LeakTestServiceConfig"));
+builder.Services.Configure<TestObjectServiceConfig>(builder.Configuration.GetSection("RabbitMqConfigurations:TestObjectServiceConfig"));
 builder.Services.AddSingleton<IProducer, LeakTestProducer>();
-builder.Services.AddSingleton<IConsumer, LeakTestConsumer>();
+builder.Services.AddSingleton<IProducer, TestObjectProducer>();
 
-builder.Services.AddSingleton<PendingRequestManager>();
-builder.Services.AddHostedService<LeakTestListenerService>();
 
 builder.Services.AddControllers();
 
