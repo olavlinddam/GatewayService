@@ -21,8 +21,8 @@ public class TestObjectServiceController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> AddSingleAsync([FromBody] TestObjectDto leakTestDto)
     {
-        const string queueName = "add-single-requests";
-        const string routingKey = "add-single-route";
+        const string queueName = "add-single-test-object-requests";
+        const string routingKey = "add-single-test-object-route";
         
         try
         {

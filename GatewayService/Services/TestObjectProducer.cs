@@ -30,11 +30,14 @@ public class TestObjectProducer : IProducer, IDisposable
         var connection = factory.CreateConnection();
         _channel = connection.CreateModel();
         _channel.ExchangeDeclare(_config.ExchangeName, "direct", durable: true, autoDelete: false, arguments: null);
+        
     }
 
     public Task<string> SendMessage<T>(T message, string queueName, string routingKey)
     {
-        _channel.QueueBind(queueName, _config.ExchangeName, routingKey);
+        // Declare the queue and set up the binding
+        _channel.QueueDeclare(queue: queueName, durable: true, exclusive: false, autoDelete: false, arguments: null);
+        _channel.QueueBind(queue: queueName, exchange: _config.ExchangeName, routingKey: routingKey);
 
         var tcs = new TaskCompletionSource<string>();
         
@@ -67,9 +70,6 @@ public class TestObjectProducer : IProducer, IDisposable
             body: requestBody);
         
         // Log that we published a request here. 
-        
-        _channel.QueueDeclare(queueName, exclusive:false);
-        
         var consumer = new EventingBasicConsumer(_channel);
 
         consumer.Received += (model, ea) =>
