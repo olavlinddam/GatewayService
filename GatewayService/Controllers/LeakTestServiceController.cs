@@ -81,7 +81,7 @@ public class LeakTestServiceController : GatewayControllerBase
         {
             using var reader = new StreamReader(Request.Body);
             var body = await reader.ReadToEndAsync();
-
+            
             var response = await _leakTestProducer.SendMessage(body, queueName, routingKey);
             
             
@@ -112,6 +112,7 @@ public class LeakTestServiceController : GatewayControllerBase
             // Add HATEOAS links
             var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
             if (leakTest != null)
+                
             {
                 leakTest.Links = new Dictionary<string, string>()
                 {

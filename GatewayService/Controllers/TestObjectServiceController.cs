@@ -22,17 +22,24 @@ public class TestObjectServiceController : GatewayControllerBase
     #region Post
     
     [HttpPost]
-    public async Task<IActionResult> AddSingleAsync([FromBody] TestObjectDto leakTestDto)
+    public async Task<IActionResult> AddSingleAsync([FromBody] TestObjectDto testObjectDto)
     {
         const string queueName = "add-single-test-object-requests";
         const string routingKey = "add-single-test-object-route";
         
         try
         {
-            var response = await _testObjectProducer.SendMessage(leakTestDto, queueName, routingKey);
+            var response = await _testObjectProducer.SendMessage(testObjectDto, queueName, routingKey);
+
+            testObjectDto.Id = Guid.Parse(response);
+            var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
+            testObjectDto.Links = new Dictionary<string, string>()
+            {
+                { "self", $"{baseUrl}/api/TestObjects/{testObjectDto.Id}" }
+            };
             
             Console.WriteLine("in controller: " + response);
-            return Ok(response);
+            return CreatedAtAction(nameof(GetById), new { id = testObjectDto.Id }, testObjectDto); 
         }
         catch (Exception e)
         {
@@ -45,7 +52,7 @@ public class TestObjectServiceController : GatewayControllerBase
     #region Get
 
     [HttpGet("{id:guid}")]
-    public async Task<IActionResult> GetSingleAsync(Guid id)
+    public async Task<IActionResult> GetById(Guid id)
     {
         const string queueName = "get-single-test-object-requests";
         const string routingKey = "get-single-test-object-route";
