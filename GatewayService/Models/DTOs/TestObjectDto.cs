@@ -8,4 +8,7 @@ public class TestObjectDto
     public Guid MachineId { get; set; }
     public string ImagePath { get; set; }
     public List<SniffingPointDto> SniffingPoints { get; set; }
+    
+    public Dictionary<string, string>? Links { get; set; }
+
 }
