@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using GatewayService.Models.DTOs;
 using GatewayService.Services.RabbitMq;
@@ -32,16 +33,16 @@ public class LeakTestServiceController : GatewayControllerBase
         {
             var response = await _leakTestProducer.SendMessage(leakTestDto, queueName, routingKey);
 
-            leakTestDto.LeakTestId = Guid.Parse(response);
+            var apiResponse = JsonSerializer.Deserialize<ApiResponse<LeakTestDto>>(response);
             
             var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
-            leakTestDto.Links = new Dictionary<string, string>()
+            apiResponse.Data.Links = new Dictionary<string, string>()
             {
-                { "self", $"{baseUrl}/api/LeakTests/{leakTestDto.LeakTestId}" }
+                { "self", $"{baseUrl}/api/LeakTests/{apiResponse.Data.LeakTestId}" }
             };
 
             Console.WriteLine("in controller: " + response);
-            return CreatedAtAction(nameof(GetById), new { id = leakTestDto.LeakTestId }, leakTestDto);
+            return CreatedAtAction(nameof(GetById), new { id = apiResponse.Data.LeakTestId }, apiResponse);
         }
         
         catch (TimeoutException e)
@@ -65,25 +66,48 @@ public class LeakTestServiceController : GatewayControllerBase
 
     
     [HttpPost("Batch")]
-    public async Task<IActionResult> AddBatchAsync()
+    public async Task<IActionResult> AddBatchAsync([FromBody] List<LeakTestDto> leakTestDtos)
     {
         const string queueName = "add-batch-requests";
         const string routingKey = "add-batch-route";
         try
         {
-            using var reader = new StreamReader(Request.Body);
-            var body = await reader.ReadToEndAsync();
+            var response = await _leakTestProducer.SendMessage(leakTestDtos, queueName, routingKey);
+
+            var apiResponse = JsonSerializer.Deserialize<ApiResponse<List<LeakTestDto>>>(response);
             
-            var response = await _leakTestProducer.SendMessage(body, queueName, routingKey);
-            
-            
+            var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
+            foreach (var leakTestDto in apiResponse.Data)
+            {
+                leakTestDto.Links = new Dictionary<string, string>()
+                {
+                    { "self", $"{baseUrl}/api/LeakTests/{leakTestDto.LeakTestId}" }
+                };
+            }
+
+
             Console.WriteLine("in controller: " + response);
-            return Ok(response);
+            return CreatedAtAction(nameof(GetAll), apiResponse);
         }
+        
+        catch (TimeoutException e)
+        {
+            const string? item = "Batch of test results"; // what was being processed
+            var ids = new StringBuilder();
+            leakTestDtos.ForEach(x => ids.Append($"{x.LeakTestId.ToString()}, ")); // Using the ID if available, otherwise "N/A"
+            
+            return TimedOutRequestWithDetails(e.Message, item, ids.ToString());
+        }
+        
         catch (Exception e)
         {
             // Log the exception here
-            return BadRequest($"The request could not be processed due to: {e.Message}");
+    
+            const string? item = "Batch of test results"; // what was being processed
+            var ids = new StringBuilder();
+            leakTestDtos.ForEach(x => ids.Append($"{x.LeakTestId.ToString()}, ")); // Using the ID if available, otherwise "N/A"
+    
+            return BadRequestWithDetails($"The request could not be processed due to: {e.Message}", item, ids.ToString());
         }
     }
 
