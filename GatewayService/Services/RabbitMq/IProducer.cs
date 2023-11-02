@@ -1,4 +1,4 @@
-namespace GatewayService.Services;
+namespace GatewayService.Services.RabbitMq;
 
 public interface IProducer
 { 

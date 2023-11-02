@@ -1,14 +1,6 @@
-using System.Text;
-using GatewayService.Configuration;
-using GatewayService.Models;
-using GatewayService.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using System.Threading.Tasks.Dataflow;
 using GatewayService.Models.DTOs;
-using Newtonsoft.Json;
+using GatewayService.Services.RabbitMq;
 using Newtonsoft.Json.Linq;
 using JsonSerializer = System.Text.Json.JsonSerializer;
 
@@ -20,9 +12,9 @@ public class LeakTestServiceController : GatewayControllerBase
 {
     private readonly IProducer _leakTestProducer;
 
-    public LeakTestServiceController(IOptions<LeakTestServiceConfig> configOptions)
+    public LeakTestServiceController(IProducer leakTestProducer)
     {
-        _leakTestProducer = new LeakTestProducer(configOptions);
+        _leakTestProducer = leakTestProducer;
     }
 
     [HttpGet("test")]
@@ -172,11 +164,11 @@ public class LeakTestServiceController : GatewayControllerBase
         {
             var response = await _leakTestProducer.SendMessage($"{key};{value}", queueName, routingKey);
 
-            var leakTests = JsonSerializer.Deserialize<List<LeakTestDto>>(response);
+            var apiResponse = JsonSerializer.Deserialize<ApiResponse<List<LeakTestDto> >>(response);
 
 
             // Add HATEOAS links
-            leakTests?.ForEach(t =>
+            apiResponse.Data?.ForEach(t =>
             {
                 var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
                 t.Links = new Dictionary<string, string>()
@@ -185,7 +177,7 @@ public class LeakTestServiceController : GatewayControllerBase
                 };
             });
             
-            return Ok(leakTests);
+            return Ok(apiResponse);
         }
         catch (Exception e)
         {

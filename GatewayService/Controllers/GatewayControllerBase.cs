@@ -13,7 +13,25 @@ public class GatewayControllerBase : ControllerBase
         {
             Error = new ErrorDetails
             {
-                Name = "TimedOutRequest",
+                Name = "BadRequest",
+                Message = message,
+                StatusCode = statusCode,
+                Item = item,
+                Id = id
+            }
+        };
+        return StatusCode(statusCode, errorResponse);
+    }
+    
+    protected IActionResult NotFoundWithDetails(string? message, string? item = null, string? id = null)
+    {
+        var statusCode = StatusCodes.Status404NotFound;
+
+        var errorResponse = new ErrorResponse
+        {
+            Error = new ErrorDetails
+            {
+                Name = "NotFound",
                 Message = message,
                 StatusCode = statusCode,
                 Item = item,

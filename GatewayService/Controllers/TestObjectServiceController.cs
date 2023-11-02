@@ -1,7 +1,11 @@
 using System.Text.Json;
 using GatewayService.Configuration;
+using GatewayService.Models;
 using GatewayService.Models.DTOs;
+using GatewayService.Models.ErrorModels;
 using GatewayService.Services;
+using GatewayService.Services.Aggregation;
+using GatewayService.Services.RabbitMq;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -13,11 +17,22 @@ namespace GatewayService.Controllers;
 public class TestObjectServiceController : GatewayControllerBase
 {
     private readonly IProducer _testObjectProducer;
+    private readonly IAggregationService _aggregationService;
 
-    public TestObjectServiceController(IOptions<TestObjectServiceConfig> configOptions)
+    public TestObjectServiceController(IProducer testObjectProducer, IAggregationService aggregationService)
     {
-        _testObjectProducer = new TestObjectProducer(configOptions);
+        _testObjectProducer = testObjectProducer;
+        _aggregationService = aggregationService;
     }
+
+    [HttpGet("TestObjectWithTestResults/{id:guid}")]
+    public async Task<IActionResult> GetTestObjectWithTestResults(Guid id)
+    {
+        var apiResponse = await _aggregationService.GetTestObjectWithResults(id);
+
+        return Ok(apiResponse);
+    }
+
 
     #region Post
     
@@ -30,16 +45,40 @@ public class TestObjectServiceController : GatewayControllerBase
         try
         {
             var response = await _testObjectProducer.SendMessage(testObjectDto, queueName, routingKey);
-
-            testObjectDto.Id = Guid.Parse(response);
-            var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
-            testObjectDto.Links = new Dictionary<string, string>()
-            {
-                { "self", $"{baseUrl}/api/TestObjects/{testObjectDto.Id}" }
-            };
             
+            if (response == null)
+            {
+                return NotFound(new ApiResponse<TestObjectDto>
+                {
+                    StatusCode = 404,
+                    ErrorMessage = "Data not found"
+                });
+            }
+
+            var apiResponse = JsonSerializer.Deserialize<ApiResponse<TestObjectDto>>(response);
+
+            // Check if the Data in ApiResponse is not null
+            if(apiResponse.Data == null)
+            {
+                return BadRequest("Data in the response was null.");
+            }
+
+            var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
+            apiResponse.Data.Links = new Dictionary<string, string>()
+            {
+                { "self", $"{baseUrl}/api/TestObjects/{apiResponse.Data.Id}" }
+            };
+        
             Console.WriteLine("in controller: " + response);
-            return CreatedAtAction(nameof(GetById), new { id = testObjectDto.Id }, testObjectDto); 
+            return CreatedAtAction(nameof(GetById), new { id = apiResponse.Data.Id }, apiResponse); 
+        }
+        catch (TimeoutException e)
+        {
+            const string? item = "Single test result"; 
+            var id = testObjectDto.Id.ToString() ?? "N/A"; 
+    
+            Console.WriteLine(e.Message);
+            return TimedOutRequestWithDetails(e.Message, item, id);
         }
         catch (Exception e)
         {
@@ -58,32 +97,41 @@ public class TestObjectServiceController : GatewayControllerBase
         const string routingKey = "get-single-test-object-route";
         try
         {
+            Console.WriteLine("Endpoint hit");
             var response = await _testObjectProducer.SendMessage(id, queueName, routingKey);
-
-            TestObjectDto? testObject;
-            try
+            
+            var apiResponse = JsonSerializer.Deserialize<ApiResponse<TestObjectDto>>(response);
+            if (apiResponse == null)
             {
-                testObject = JsonSerializer.Deserialize<TestObjectDto>(response);
-            }
-            catch (JsonException)
-            {
-                // If deserialization fails, it might be a plain string error message
-                return BadRequestWithDetails($"The request could not be processed due to: {response}");
+                return BadRequest("Invalid response from the service.");
             }
 
-            if (testObject == null)
+            switch (apiResponse.StatusCode)
             {
-                return NotFound("Test object not found");
+                case 200:
+                {
+                    // Add HATEOAS links
+                    var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
+                    apiResponse.Data.Links = new Dictionary<string, string>
+                    {
+                        { "self", $"{baseUrl}/api/TestObjects/{apiResponse.Data?.Id}" }
+                    };
+                
+                    // return the test object
+                    return Ok(apiResponse);
+                }
+                case 404:
+                    return NotFoundWithDetails(apiResponse.ErrorMessage, null, id.ToString());
+                default:
+                    var statusCode = apiResponse.StatusCode;
+                    // Something went wrong, handle accordingly
+                    return StatusCode(statusCode, apiResponse.ErrorMessage);
             }
-        
-            // Add HATEOAS links
-            var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
-            testObject.Links = new Dictionary<string, string>
-            {
-                { "self", $"{baseUrl}/api/TestObjects/{testObject.Id}" }
-            };
-        
-            return Ok(testObject);
+        }
+        catch (TimeoutException e)
+        {
+            const string? item = "Single test result"; // what was being processed
+            return TimedOutRequestWithDetails(e.Message, item, id.ToString());
         }
         catch (Exception e)
         {

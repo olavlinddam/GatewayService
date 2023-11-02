@@ -1,6 +1,8 @@
 using GatewayService.Configuration;
 using GatewayService.Models;
 using GatewayService.Services;
+using GatewayService.Services.Aggregation;
+using GatewayService.Services.RabbitMq;
 using GatewayService.StartUp;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,9 +17,11 @@ builder.Host.ConfigureAppSettings();
 // Add services to the container. First we add the InfluxDbConfig to the dependency injection container. 
 builder.Services.Configure<LeakTestServiceConfig>(builder.Configuration.GetSection("RabbitMqConfigurations:LeakTestServiceConfig"));
 builder.Services.Configure<TestObjectServiceConfig>(builder.Configuration.GetSection("RabbitMqConfigurations:TestObjectServiceConfig"));
-builder.Services.AddSingleton<IProducer, LeakTestProducer>();
-builder.Services.AddSingleton<IProducer, TestObjectProducer>();
-
+builder.Services.Configure<RabbitMqConfig>(builder.Configuration.GetSection("RabbitMqConfig"));
+builder.Services.AddScoped<IProducer, LeakTestProducer>();
+builder.Services.AddScoped<IProducer, TestObjectProducer>();
+builder.Services.AddScoped<IAggregationService, AggregationService>();
+builder.Services.AddSingleton<RabbitMqConnectionService>();
 
 builder.Services.AddControllers();
 
