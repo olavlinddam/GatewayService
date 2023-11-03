@@ -32,6 +32,92 @@ public class TestObjectServiceController : GatewayControllerBase
 
         return Ok(apiResponse);
     }
+    
+    [HttpPut]
+    public async Task<IActionResult> UpdateSingleAsync([FromBody] TestObjectDto testObjectDto)
+    {
+        const string queueName = "update-single-test-object-requests";
+        const string routingKey = "update-single-test-object-route";
+
+        try
+        {
+            var response = await _testObjectProducer.SendMessage(testObjectDto, queueName, routingKey);
+            if (response == null)
+            {
+                return NotFound(new ApiResponse<TestObjectDto>
+                {
+                    StatusCode = 404,
+                    ErrorMessage = "Data not found"
+                });
+            }
+
+            var apiResponse = JsonSerializer.Deserialize<ApiResponse<TestObjectDto>>(response);
+
+            // Check if the Data in ApiResponse is not null
+            if(apiResponse.Data == null)
+            {
+                return BadRequest("Data in the response was null.");
+            }
+
+            var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
+            apiResponse.Data.Links = new Dictionary<string, string>()
+            {
+                { "self", $"{baseUrl}/api/TestObjects/{apiResponse.Data.Id}" }
+            };
+        
+            Console.WriteLine("in controller: " + response);
+            return CreatedAtAction(nameof(GetById), new { id = apiResponse.Data.Id }, apiResponse); 
+        }
+        catch (TimeoutException e)
+        {
+            const string? item = "Single test result"; 
+            var id = testObjectDto.Id.ToString() ?? "N/A"; 
+    
+            Console.WriteLine(e.Message);
+            return TimedOutRequestWithDetails(e.Message, item, id);
+        }
+        catch (Exception e)
+        {
+            // Log the exception here
+            return BadRequest($"The request could not be processed due to: {e.Message}");
+        }  
+    }
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> DeleteSingleAsync(Guid id)
+    {
+        const string queueName = "delete-single-test-object-requests";
+        const string routingKey = "delete-single-test-object-route";
+
+        try
+        {
+            var response = await _testObjectProducer.SendMessage(id, queueName, routingKey);
+            if (response == null)
+            {
+                return NotFound(new ApiResponse<TestObjectDto>
+                {
+                    StatusCode = 404,
+                    ErrorMessage = "Data not found"
+                });
+            }
+
+            var apiResponse = JsonSerializer.Deserialize<ApiResponse<TestObjectDto>>(response);
+            
+            Console.WriteLine("in controller: " + response);
+            return Ok(apiResponse);
+        }
+        catch (TimeoutException e)
+        {
+            const string? item = "Single test result"; 
+            Console.WriteLine(e.Message);
+            return TimedOutRequestWithDetails(e.Message, item, id.ToString());
+        }
+        catch (Exception e)
+        {
+            // Log the exception here
+            return BadRequest($"The request could not be processed due to: {e.Message}");
+        }
+    }
 
 
     #region Post
