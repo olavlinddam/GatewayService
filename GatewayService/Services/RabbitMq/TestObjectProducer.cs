@@ -9,11 +9,11 @@ namespace GatewayService.Services.RabbitMq;
 
 public class TestObjectProducer : IProducer
 {
-    private readonly LeakTestServiceConfig _config;
+    private readonly TestObjectServiceConfig _config;
     private readonly RabbitMqConnectionService _connectionService;
     private readonly string _exchangeName = "test-object-exchange";
 
-    public TestObjectProducer(IOptions<LeakTestServiceConfig> configOptions, RabbitMqConnectionService connectionService)
+    public TestObjectProducer(IOptions<TestObjectServiceConfig> configOptions, RabbitMqConnectionService connectionService)
     {
         _config = configOptions.Value;
         _connectionService = connectionService;
