@@ -3,6 +3,7 @@ using GatewayService.Models;
 using GatewayService.Services;
 using GatewayService.Services.Aggregation;
 using GatewayService.Services.RabbitMq;
+using GatewayService.Services.Retry;
 using GatewayService.StartUp;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -22,6 +23,7 @@ builder.Services.AddScoped<IProducer, LeakTestProducer>();
 builder.Services.AddScoped<IProducer, TestObjectProducer>();
 builder.Services.AddScoped<IAggregationService, AggregationService>();
 builder.Services.AddSingleton<RabbitMqConnectionService>();
+builder.Services.AddTransient<IRetryService, RetryService>();
 
 builder.Services.AddControllers();
 
@@ -43,6 +45,8 @@ if (app.Environment.IsDevelopment())
 // app.UseHttpsRedirection();
 
 app.UseAuthorization();
+
+// Middleware
 
 app.MapControllers();
 

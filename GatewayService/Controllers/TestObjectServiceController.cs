@@ -6,8 +6,10 @@ using GatewayService.Models.ErrorModels;
 using GatewayService.Services;
 using GatewayService.Services.Aggregation;
 using GatewayService.Services.RabbitMq;
+using GatewayService.Services.Retry;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using RabbitMQ.Client.Exceptions;
 
 namespace GatewayService.Controllers;
 
@@ -18,11 +20,13 @@ public class TestObjectServiceController : GatewayControllerBase
 {
     private readonly IProducer _testObjectProducer;
     private readonly IAggregationService _aggregationService;
+    private readonly IRetryService _retryService;
 
-    public TestObjectServiceController(IProducer testObjectProducer, IAggregationService aggregationService)
+    public TestObjectServiceController(IProducer testObjectProducer, IAggregationService aggregationService, IRetryService retryService)
     {
         _testObjectProducer = testObjectProducer;
         _aggregationService = aggregationService;
+        _retryService = retryService;
     }
 
     [HttpGet("TestObjectWithTestResults/{id:guid}")]
@@ -125,13 +129,15 @@ public class TestObjectServiceController : GatewayControllerBase
     [HttpPost]
     public async Task<IActionResult> AddSingleAsync([FromBody] TestObjectDto testObjectDto)
     {
+        const string? exceptionItem = "Single test result";
         const string queueName = "add-single-test-object-requests";
         const string routingKey = "add-single-test-object-route";
-        
+
         try
         {
-            var response = await _testObjectProducer.SendMessage(testObjectDto, queueName, routingKey);
-            
+            var response = await _retryService.RetryOnExceptionAsync(3, TimeSpan.FromSeconds(2), () =>
+                _testObjectProducer.SendMessage(testObjectDto, queueName, routingKey));
+
             if (response == null)
             {
                 return NotFound(new ApiResponse<TestObjectDto>
@@ -144,7 +150,7 @@ public class TestObjectServiceController : GatewayControllerBase
             var apiResponse = JsonSerializer.Deserialize<ApiResponse<TestObjectDto>>(response);
 
             // Check if the Data in ApiResponse is not null
-            if(apiResponse.Data == null)
+            if (apiResponse.Data == null)
             {
                 return BadRequest("Data in the response was null.");
             }
@@ -154,17 +160,33 @@ public class TestObjectServiceController : GatewayControllerBase
             {
                 { "self", $"{baseUrl}/api/TestObjects/{apiResponse.Data.Id}" }
             };
-        
+
             Console.WriteLine("in controller: " + response);
-            return CreatedAtAction(nameof(GetById), new { id = apiResponse.Data.Id }, apiResponse); 
+            return CreatedAtAction(nameof(GetById), new { id = apiResponse.Data.Id }, apiResponse);
+        }
+        catch (BrokerUnreachableException e)
+        {
+            Console.WriteLine(e.Message);
+            const string? message = "Broker unavailable. Please try again later.";
+            return RabbitMqErrorWithDetails(message, exceptionItem, null);
+        }
+        catch (RabbitMQClientException e)
+        {
+            Console.WriteLine(e.Message);
+
+            const string? message =
+                "Unable to get a response from service. Item will be added to the database once the" +
+                "server is available. Do not post again.";
+            const string? id = "Unable to return the ID of the item at this point.";
+
+            return RabbitMqErrorWithDetails(message, exceptionItem, id);
         }
         catch (TimeoutException e)
         {
-            const string? item = "Single test result"; 
-            var id = testObjectDto.Id.ToString() ?? "N/A"; 
-    
+            var id = testObjectDto.Id.ToString() ?? "N/A";
+
             Console.WriteLine(e.Message);
-            return TimedOutRequestWithDetails(e.Message, item, id);
+            return TimedOutRequestWithDetails(e.Message, exceptionItem, id);
         }
         catch (Exception e)
         {
