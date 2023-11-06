@@ -48,6 +48,10 @@ public class TestObjectProducer : IProducer
             
             var requestBody = Encoding.UTF8.GetBytes(json);
 
+            if (message == 'getAll')
+            {
+                requestBody = Array.Empty<byte>();
+            }
             // Setting the properties required for the server to know how to reply to the request. 
             var properties = channel.CreateBasicProperties();
             properties.ReplyTo = replyQueue.QueueName;
@@ -77,7 +81,7 @@ public class TestObjectProducer : IProducer
             channel.BasicConsume(queue: replyQueue.QueueName, autoAck: false, consumer: consumer);
             var taskToWait = tcs.Task;
             
-            if (await Task.WhenAny(taskToWait, Task.Delay(TimeSpan.FromSeconds(1000))) == taskToWait)
+            if (await Task.WhenAny(taskToWait, Task.Delay(TimeSpan.FromSeconds(10))) == taskToWait)
             {
                 // Task completed within the timeout
                 return await taskToWait;
