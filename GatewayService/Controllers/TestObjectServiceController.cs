@@ -90,12 +90,15 @@ public class TestObjectServiceController : GatewayControllerBase
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeleteSingleAsync(Guid id)
     {
+        const string? exceptionItem = "Test Object";
         const string queueName = "delete-single-test-object-requests";
         const string routingKey = "delete-single-test-object-route";
 
         try
         {
-            var response = await _testObjectProducer.SendMessage(id, queueName, routingKey);
+            var response = await _retryService.RetryOnExceptionAsync(3, TimeSpan.FromSeconds(2), () => 
+                _testObjectProducer.SendMessage(id, queueName, routingKey));
+            
             if (response == null)
             {
                 return NotFound(new ApiResponse<TestObjectDto>
@@ -110,11 +113,21 @@ public class TestObjectServiceController : GatewayControllerBase
             Console.WriteLine("in controller: " + response);
             return Ok(apiResponse);
         }
+        catch (BrokerUnreachableException e)
+        {
+            Console.WriteLine(e.Message);
+            const string? message = "Broker unavailable. Please try again later.";
+            return RabbitMqErrorWithDetails(message, exceptionItem, null);
+        }
         catch (TimeoutException e)
         {
-            const string? item = "Single test result"; 
             Console.WriteLine(e.Message);
-            return TimedOutRequestWithDetails(e.Message, item, id.ToString());
+
+            const string? message =
+                "Unable to get a response from service. Item will be deleted to the database once the" +
+                "server is available. Do not post again.";
+
+            return TimedOutRequestWithDetails(message, exceptionItem, null);
         }
         catch (Exception e)
         {
@@ -129,14 +142,15 @@ public class TestObjectServiceController : GatewayControllerBase
     [HttpPost]
     public async Task<IActionResult> AddSingleAsync([FromBody] TestObjectDto testObjectDto)
     {
-        const string? exceptionItem = "Single test result";
+        const string? exceptionItem = "Test Object";
         const string queueName = "add-single-test-object-requests";
         const string routingKey = "add-single-test-object-route";
 
         try
         {
-            var response = await _retryService.RetryOnExceptionAsync(3, TimeSpan.FromSeconds(2), () =>
+            var response = await _retryService.RetryOnExceptionAsync(3, TimeSpan.FromSeconds(2), () => 
                 _testObjectProducer.SendMessage(testObjectDto, queueName, routingKey));
+            
 
             if (response == null)
             {
@@ -170,7 +184,7 @@ public class TestObjectServiceController : GatewayControllerBase
             const string? message = "Broker unavailable. Please try again later.";
             return RabbitMqErrorWithDetails(message, exceptionItem, null);
         }
-        catch (RabbitMQClientException e)
+        catch (TimeoutException e)
         {
             Console.WriteLine(e.Message);
 
@@ -179,14 +193,7 @@ public class TestObjectServiceController : GatewayControllerBase
                 "server is available. Do not post again.";
             const string? id = "Unable to return the ID of the item at this point.";
 
-            return RabbitMqErrorWithDetails(message, exceptionItem, id);
-        }
-        catch (TimeoutException e)
-        {
-            var id = testObjectDto.Id.ToString() ?? "N/A";
-
-            Console.WriteLine(e.Message);
-            return TimedOutRequestWithDetails(e.Message, exceptionItem, id);
+            return TimedOutRequestWithDetails(message, exceptionItem, id);
         }
         catch (Exception e)
         {
