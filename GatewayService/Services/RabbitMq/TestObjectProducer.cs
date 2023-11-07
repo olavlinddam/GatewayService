@@ -84,6 +84,7 @@ public class TestObjectProducer : IProducer
             }
             
             // Timeout logic
+            
             throw new TimeoutException("The service is currently unavailable, please try again later.");
         }
         catch (Exception e)

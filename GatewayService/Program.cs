@@ -23,7 +23,7 @@ builder.Services.AddScoped<IProducer, LeakTestProducer>();
 builder.Services.AddScoped<IProducer, TestObjectProducer>();
 builder.Services.AddScoped<IAggregationService, AggregationService>();
 builder.Services.AddSingleton<RabbitMqConnectionService>();
-builder.Services.AddTransient<IRetryService, RetryService>();
+builder.Services.AddSingleton<IRetryService, RetryService>();
 
 builder.Services.AddControllers();
 

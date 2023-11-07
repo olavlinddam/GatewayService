@@ -9,6 +9,7 @@ using GatewayService.Services.RabbitMq;
 using GatewayService.Services.Retry;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using Polly.CircuitBreaker;
 using RabbitMQ.Client.Exceptions;
 
 namespace GatewayService.Controllers;
@@ -124,10 +125,15 @@ public class TestObjectServiceController : GatewayControllerBase
             Console.WriteLine(e.Message);
 
             const string? message =
-                "Unable to get a response from service. Item will be deleted to the database once the" +
+                "Unable to get a response from service. Item will be deleted from the database once the" +
                 "server is available. Do not post again.";
 
             return TimedOutRequestWithDetails(message, exceptionItem, null);
+        }
+        catch (BrokenCircuitException e)
+        {
+            const string? message = "The service is currently unavailable. Retry after 60 seconds.";
+            return BrokenCircuitErrorWithDetails(message);
         }
         catch (Exception e)
         {
@@ -148,9 +154,9 @@ public class TestObjectServiceController : GatewayControllerBase
 
         try
         {
-            var response = await _retryService.RetryOnExceptionAsync(3, TimeSpan.FromSeconds(2), () => 
+            var response = await _retryService.RetryOnExceptionAsync(3, TimeSpan.FromSeconds(2), () =>
                 _testObjectProducer.SendMessage(testObjectDto, queueName, routingKey));
-            
+
 
             if (response == null)
             {
@@ -194,6 +200,12 @@ public class TestObjectServiceController : GatewayControllerBase
             const string? id = "Unable to return the ID of the item at this point.";
 
             return TimedOutRequestWithDetails(message, exceptionItem, id);
+        }
+        catch (BrokenCircuitException e)
+        {
+            Console.WriteLine(e.Message);
+            const string? message = "The service is currently unavailable. Retry after 60 seconds.";
+            return BrokenCircuitErrorWithDetails(message);
         }
         catch (Exception e)
         {

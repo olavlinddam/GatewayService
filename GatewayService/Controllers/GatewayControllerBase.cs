@@ -76,4 +76,21 @@ public class GatewayControllerBase : ControllerBase
         };
         return StatusCode(statusCode, errorResponse);
     }
+    protected IActionResult BrokenCircuitErrorWithDetails(string message, string? item = null, string? id = null)
+    {
+        var statusCode = StatusCodes.Status503ServiceUnavailable;
+
+        var errorResponse = new ErrorResponse
+        {
+            Error = new ErrorDetails
+            {
+                Name = "Service unavailable.",
+                Message = message,
+                StatusCode = statusCode,
+                Item = item,
+                Id = id
+            }
+        };
+        return StatusCode(statusCode, errorResponse);
+    }
 }
