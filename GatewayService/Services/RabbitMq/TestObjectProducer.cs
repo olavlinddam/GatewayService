@@ -77,7 +77,7 @@ public class TestObjectProducer : IProducer
             channel.BasicConsume(queue: replyQueue.QueueName, autoAck: false, consumer: consumer);
             var taskToWait = tcs.Task;
             
-            if (await Task.WhenAny(taskToWait, Task.Delay(TimeSpan.FromSeconds(10))) == taskToWait)
+            if (await Task.WhenAny(taskToWait, Task.Delay(TimeSpan.FromSeconds(0.1))) == taskToWait)
             {
                 // Task completed within the timeout
                 return await taskToWait;
