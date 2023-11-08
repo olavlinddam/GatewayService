@@ -28,7 +28,7 @@ public class TestObjectProducer : IProducer
 
             // Declare the queue and set up the binding
             channel.QueueDeclare(queue: queueName, durable: true, exclusive: false, autoDelete: false, arguments: null);
-            channel.QueueBind(queue: queueName, exchange: _config.ExchangeName, routingKey: routingKey);
+            channel.QueueBind(queue: queueName, exchange: _exchangeName, routingKey: routingKey);
 
 
             var tcs = new TaskCompletionSource<string>();
@@ -48,10 +48,6 @@ public class TestObjectProducer : IProducer
             
             var requestBody = Encoding.UTF8.GetBytes(json);
 
-            if (message == 'getAll')
-            {
-                requestBody = Array.Empty<byte>();
-            }
             // Setting the properties required for the server to know how to reply to the request. 
             var properties = channel.CreateBasicProperties();
             properties.ReplyTo = replyQueue.QueueName;
@@ -60,7 +56,7 @@ public class TestObjectProducer : IProducer
             Console.WriteLine($"Sending request: {properties.CorrelationId}");
             
             channel.BasicPublish(
-                exchange: _config.ExchangeName,
+                exchange: _exchangeName,
                 routingKey: routingKey, 
                 basicProperties: properties, 
                 body: requestBody);
