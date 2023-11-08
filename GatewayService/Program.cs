@@ -25,6 +25,18 @@ builder.Services.AddScoped<IAggregationService, AggregationService>();
 builder.Services.AddSingleton<RabbitMqConnectionService>();
 builder.Services.AddSingleton<IRetryService, RetryService>();
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowWebApp", policyBuilder =>
+    {
+        policyBuilder
+            .WithOrigins("*") 
+            .AllowAnyMethod()
+            .AllowAnyHeader();
+    });
+});
+
+
 builder.Services.AddControllers();
 
 
@@ -47,7 +59,7 @@ if (app.Environment.IsDevelopment())
 app.UseAuthorization();
 
 // Middleware
-
+app.UseCors("AllowWebApp");
 app.MapControllers();
 
 app.Run();
