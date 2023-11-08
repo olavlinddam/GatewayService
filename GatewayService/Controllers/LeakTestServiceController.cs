@@ -122,21 +122,21 @@ public class LeakTestServiceController : GatewayControllerBase
         {
             var response = await _leakTestProducer.SendMessage(id, queueName, routingKey);
 
-            var leakTest = JsonSerializer.Deserialize<LeakTestDto>(response);
+            var apiResponse = JsonSerializer.Deserialize<ApiResponse<LeakTestDto>>(response);
 
             
             // Add HATEOAS links
             var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
-            if (leakTest != null)
+            if (apiResponse != null)
                 
             {
-                leakTest.Links = new Dictionary<string, string>()
+                apiResponse.Data.Links = new Dictionary<string, string>()
                 {
-                    { "self", $"{baseUrl}/api/LeakTests/{leakTest.LeakTestId}" }
+                    { "self", $"{baseUrl}/api/LeakTests/{apiResponse.Data.LeakTestId}" }
                 };
             }
             
-            return Ok(leakTest);
+            return Ok(apiResponse);
         }
         catch (Exception e)
         {
@@ -156,11 +156,19 @@ public class LeakTestServiceController : GatewayControllerBase
         {
             var response = await _leakTestProducer.SendMessage("", queueName, routingKey);
 
-            var leakTests = JsonSerializer.Deserialize<List<LeakTestDto>>(response);
+            if (response == null)
+            {
+                return NotFound(new ApiResponse<TestObjectDto>
+                {
+                    StatusCode = 404,
+                    ErrorMessage = "Data not found"
+                });
+            }
 
-
+            var apiResponse = JsonSerializer.Deserialize<ApiResponse<List<LeakTestDto>>>(response);
+            
             // Add HATEOAS links
-            leakTests?.ForEach(t =>
+            apiResponse.Data?.ForEach(t =>
             {
                 var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
                 t.Links = new Dictionary<string, string>()
@@ -169,7 +177,7 @@ public class LeakTestServiceController : GatewayControllerBase
                 };
             });
             
-            return Ok(leakTests);
+            return Ok(apiResponse);
         }
         catch (Exception e)
         {
@@ -189,8 +197,7 @@ public class LeakTestServiceController : GatewayControllerBase
             var response = await _leakTestProducer.SendMessage($"{key};{value}", queueName, routingKey);
 
             var apiResponse = JsonSerializer.Deserialize<ApiResponse<List<LeakTestDto> >>(response);
-
-
+            
             // Add HATEOAS links
             apiResponse.Data?.ForEach(t =>
             {
@@ -220,11 +227,10 @@ public class LeakTestServiceController : GatewayControllerBase
         {
             var response = await _leakTestProducer.SendMessage($"{key};{value}", queueName, routingKey);
 
-            var leakTests = JsonSerializer.Deserialize<List<LeakTestDto>>(response);
-
-
+            var apiResponse = JsonSerializer.Deserialize<ApiResponse<List<LeakTestDto> >>(response);
+            
             // Add HATEOAS links
-            leakTests?.ForEach(t =>
+            apiResponse.Data?.ForEach(t =>
             {
                 var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
                 t.Links = new Dictionary<string, string>()
@@ -233,7 +239,7 @@ public class LeakTestServiceController : GatewayControllerBase
                 };
             });
             
-            return Ok(leakTests);
+            return Ok(apiResponse);
         }
         catch (Exception e)
         {
@@ -252,11 +258,10 @@ public class LeakTestServiceController : GatewayControllerBase
         {
             var response = await _leakTestProducer.SendMessage($"{start};{stop}", queueName, routingKey);
 
-            var leakTests = JsonSerializer.Deserialize<List<LeakTestDto>>(response);
-
-
+            var apiResponse = JsonSerializer.Deserialize<ApiResponse<List<LeakTestDto> >>(response);
+            
             // Add HATEOAS links
-            leakTests?.ForEach(t =>
+            apiResponse.Data?.ForEach(t =>
             {
                 var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
                 t.Links = new Dictionary<string, string>()
@@ -265,7 +270,7 @@ public class LeakTestServiceController : GatewayControllerBase
                 };
             });
             
-            return Ok(leakTests);
+            return Ok(apiResponse);
         }
         catch (Exception e)
         {

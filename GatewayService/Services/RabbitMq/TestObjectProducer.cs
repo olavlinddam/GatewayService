@@ -9,11 +9,11 @@ namespace GatewayService.Services.RabbitMq;
 
 public class TestObjectProducer : IProducer
 {
-    private readonly TestObjectServiceConfig _config;
+    private readonly LeakTestServiceConfig _config;
     private readonly RabbitMqConnectionService _connectionService;
     private readonly string _exchangeName = "test-object-exchange";
 
-    public TestObjectProducer(IOptions<TestObjectServiceConfig> configOptions, RabbitMqConnectionService connectionService)
+    public TestObjectProducer(IOptions<LeakTestServiceConfig> configOptions, RabbitMqConnectionService connectionService)
     {
         _config = configOptions.Value;
         _connectionService = connectionService;
@@ -77,13 +77,14 @@ public class TestObjectProducer : IProducer
             channel.BasicConsume(queue: replyQueue.QueueName, autoAck: false, consumer: consumer);
             var taskToWait = tcs.Task;
             
-            if (await Task.WhenAny(taskToWait, Task.Delay(TimeSpan.FromSeconds(10))) == taskToWait)
+            if (await Task.WhenAny(taskToWait, Task.Delay(TimeSpan.FromSeconds(0.1))) == taskToWait)
             {
                 // Task completed within the timeout
                 return await taskToWait;
             }
             
             // Timeout logic
+            
             throw new TimeoutException("The service is currently unavailable, please try again later.");
         }
         catch (Exception e)

@@ -6,8 +6,11 @@ using GatewayService.Models.ErrorModels;
 using GatewayService.Services;
 using GatewayService.Services.Aggregation;
 using GatewayService.Services.RabbitMq;
+using GatewayService.Services.Retry;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using Polly.CircuitBreaker;
+using RabbitMQ.Client.Exceptions;
 
 namespace GatewayService.Controllers;
 
@@ -18,18 +21,22 @@ public class TestObjectServiceController : GatewayControllerBase
 {
     private readonly IProducer _testObjectProducer;
     private readonly IAggregationService _aggregationService;
+    private readonly IRetryService _retryService;
 
-    public TestObjectServiceController(IProducer testObjectProducer, IAggregationService aggregationService)
+    public TestObjectServiceController(IProducer testObjectProducer, IAggregationService aggregationService, IRetryService retryService)
     {
         _testObjectProducer = testObjectProducer;
         _aggregationService = aggregationService;
+        _retryService = retryService;
     }
 
     [HttpGet("TestObjectWithTestResults/{id:guid}")]
     public async Task<IActionResult> GetTestObjectWithTestResults(Guid id)
     {
+        Console.WriteLine("Endpont hit: TestObjectWithTestResults" + DateTime.Now.Second);
         var apiResponse = await _aggregationService.GetTestObjectWithResults(id);
 
+        Console.WriteLine("Response fetched. Returning test object with results.");
         return Ok(apiResponse);
     }
     
@@ -86,12 +93,15 @@ public class TestObjectServiceController : GatewayControllerBase
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeleteSingleAsync(Guid id)
     {
+        const string? exceptionItem = "Test Object";
         const string queueName = "delete-single-test-object-requests";
         const string routingKey = "delete-single-test-object-route";
 
         try
         {
-            var response = await _testObjectProducer.SendMessage(id, queueName, routingKey);
+            var response = await _retryService.RetryOnExceptionAsync(3, TimeSpan.FromSeconds(2), () => 
+                _testObjectProducer.SendMessage(id, queueName, routingKey));
+            
             if (response == null)
             {
                 return NotFound(new ApiResponse<TestObjectDto>
@@ -106,11 +116,26 @@ public class TestObjectServiceController : GatewayControllerBase
             Console.WriteLine("in controller: " + response);
             return Ok(apiResponse);
         }
+        catch (BrokerUnreachableException e)
+        {
+            Console.WriteLine(e.Message);
+            const string? message = "Broker unavailable. Please try again later.";
+            return RabbitMqErrorWithDetails(message, exceptionItem, null);
+        }
         catch (TimeoutException e)
         {
-            const string? item = "Single test result"; 
             Console.WriteLine(e.Message);
-            return TimedOutRequestWithDetails(e.Message, item, id.ToString());
+
+            const string? message =
+                "Unable to get a response from service. Item will be deleted from the database once the" +
+                "server is available. Do not post again.";
+
+            return TimedOutRequestWithDetails(message, exceptionItem, null);
+        }
+        catch (BrokenCircuitException e)
+        {
+            const string? message = "The service is currently unavailable. Retry after 60 seconds.";
+            return BrokenCircuitErrorWithDetails(message);
         }
         catch (Exception e)
         {
@@ -125,13 +150,16 @@ public class TestObjectServiceController : GatewayControllerBase
     [HttpPost]
     public async Task<IActionResult> AddSingleAsync([FromBody] TestObjectDto testObjectDto)
     {
+        const string? exceptionItem = "Test Object";
         const string queueName = "add-single-test-object-requests";
         const string routingKey = "add-single-test-object-route";
-        
+
         try
         {
-            var response = await _testObjectProducer.SendMessage(testObjectDto, queueName, routingKey);
-            
+            var response = await _retryService.RetryOnExceptionAsync(3, TimeSpan.FromSeconds(2), () =>
+                _testObjectProducer.SendMessage(testObjectDto, queueName, routingKey));
+
+
             if (response == null)
             {
                 return NotFound(new ApiResponse<TestObjectDto>
@@ -144,7 +172,7 @@ public class TestObjectServiceController : GatewayControllerBase
             var apiResponse = JsonSerializer.Deserialize<ApiResponse<TestObjectDto>>(response);
 
             // Check if the Data in ApiResponse is not null
-            if(apiResponse.Data == null)
+            if (apiResponse.Data == null)
             {
                 return BadRequest("Data in the response was null.");
             }
@@ -154,17 +182,32 @@ public class TestObjectServiceController : GatewayControllerBase
             {
                 { "self", $"{baseUrl}/api/TestObjects/{apiResponse.Data.Id}" }
             };
-        
+
             Console.WriteLine("in controller: " + response);
-            return CreatedAtAction(nameof(GetById), new { id = apiResponse.Data.Id }, apiResponse); 
+            return CreatedAtAction(nameof(GetById), new { id = apiResponse.Data.Id }, apiResponse);
+        }
+        catch (BrokerUnreachableException e)
+        {
+            Console.WriteLine(e.Message);
+            const string? message = "Broker unavailable. Please try again later.";
+            return RabbitMqErrorWithDetails(message, exceptionItem, null);
         }
         catch (TimeoutException e)
         {
-            const string? item = "Single test result"; 
-            var id = testObjectDto.Id.ToString() ?? "N/A"; 
-    
             Console.WriteLine(e.Message);
-            return TimedOutRequestWithDetails(e.Message, item, id);
+
+            const string? message =
+                "Unable to get a response from service. Item will be added to the database once the" +
+                "server is available. Do not post again.";
+            const string? id = "Unable to return the ID of the item at this point.";
+
+            return TimedOutRequestWithDetails(message, exceptionItem, id);
+        }
+        catch (BrokenCircuitException e)
+        {
+            Console.WriteLine(e.Message);
+            const string? message = "The service is currently unavailable. Retry after 60 seconds.";
+            return BrokenCircuitErrorWithDetails(message);
         }
         catch (Exception e)
         {
