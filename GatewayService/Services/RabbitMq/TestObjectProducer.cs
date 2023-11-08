@@ -48,10 +48,6 @@ public class TestObjectProducer : IProducer
             
             var requestBody = Encoding.UTF8.GetBytes(json);
 
-            if (message == 'getAll')
-            {
-                requestBody = Array.Empty<byte>();
-            }
             // Setting the properties required for the server to know how to reply to the request. 
             var properties = channel.CreateBasicProperties();
             properties.ReplyTo = replyQueue.QueueName;
@@ -88,6 +84,7 @@ public class TestObjectProducer : IProducer
             }
             
             // Timeout logic
+            
             throw new TimeoutException("The service is currently unavailable, please try again later.");
         }
         catch (Exception e)

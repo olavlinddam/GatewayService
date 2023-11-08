@@ -29,8 +29,8 @@ public class AggregationService : IAggregationService
             // Fetch TestObject
             var testObjectServiceResponse = await _testObjectProducer.SendMessage(id, testObjQueueName, testObjRoutingKey);
             var testObjectApiResponse = JsonSerializer.Deserialize<ApiResponse<TestObjectDto>>(testObjectServiceResponse);
-            
-            
+
+            Console.WriteLine("Fetching test results");
             // Fetch LeakTests
             const string key = "TestObjectId"; // LeakTestService needs to know what LeakTest attribute it should retrieve data for. 
             var value = testObjectApiResponse.Data.Id; // LeakTestService needs to know what the value of the key is. 
