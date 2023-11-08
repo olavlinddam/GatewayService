@@ -9,11 +9,11 @@ namespace GatewayService.Services.RabbitMq;
 
 public class TestObjectProducer : IProducer
 {
-    private readonly TestObjectServiceConfig _config;
+    private readonly LeakTestServiceConfig _config;
     private readonly RabbitMqConnectionService _connectionService;
     private readonly string _exchangeName = "test-object-exchange";
 
-    public TestObjectProducer(IOptions<TestObjectServiceConfig> configOptions, RabbitMqConnectionService connectionService)
+    public TestObjectProducer(IOptions<LeakTestServiceConfig> configOptions, RabbitMqConnectionService connectionService)
     {
         _config = configOptions.Value;
         _connectionService = connectionService;
@@ -28,7 +28,7 @@ public class TestObjectProducer : IProducer
 
             // Declare the queue and set up the binding
             channel.QueueDeclare(queue: queueName, durable: true, exclusive: false, autoDelete: false, arguments: null);
-            channel.QueueBind(queue: queueName, exchange: _config.ExchangeName, routingKey: routingKey);
+            channel.QueueBind(queue: queueName, exchange: _exchangeName, routingKey: routingKey);
 
 
             var tcs = new TaskCompletionSource<string>();
@@ -56,7 +56,7 @@ public class TestObjectProducer : IProducer
             Console.WriteLine($"Sending request: {properties.CorrelationId}");
             
             channel.BasicPublish(
-                exchange: _config.ExchangeName,
+                exchange: _exchangeName,
                 routingKey: routingKey, 
                 basicProperties: properties, 
                 body: requestBody);
