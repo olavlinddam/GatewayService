@@ -59,6 +59,8 @@ public class AggregationService : IAggregationService
             var value = id; // LeakTestService needs to know what the value of the key is. 
             
             var leakTestServiceResponse = await _leakTestProducer.SendMessage($"{key};{value}", leakTestQueueName, leakTestRoutingKey);
+            await Task.Delay(TimeSpan.FromSeconds(1)); // Delays for 1 second
+            Console.WriteLine("--------------------------" + leakTestServiceResponse.ToString());
             leakTestApiResponse = TrySerializeLeakTestServiceResponse(leakTestServiceResponse);
         }
         catch (TimeoutException e)
