@@ -1,6 +1,8 @@
+using System.Text;
 using System.Text.Json;
 using GatewayService.Models.DTOs;
 using GatewayService.Services.RabbitMq;
+using Microsoft.Extensions.Primitives;
 
 namespace GatewayService.Services.Aggregation;
 
@@ -21,6 +23,9 @@ public class AggregationService : IAggregationService
         const string testObjRoutingKey = "get-single-test-object-route";
         const string leakTestQueueName = "get-by-tag-requests";
         const string leakTestRoutingKey = "get-by-tag-route";
+        
+        ApiResponse<TestObjectDto> testObjectApiResponse = null;
+        ApiResponse<List<LeakTestDto>> leakTestApiResponse = null;
 
         try
         {
@@ -28,19 +33,50 @@ public class AggregationService : IAggregationService
             // Fetch TestObject
             var testObjectServiceResponse =
                 await _testObjectProducer.SendMessage(id, testObjQueueName, testObjRoutingKey);
-            var testObjectApiResponse = TrySerializeTestObjectResponse(testObjectServiceResponse);
+            testObjectApiResponse = TrySerializeTestObjectResponse(testObjectServiceResponse);
+        }
+        catch (TimeoutException e)
+        {
+            Console.WriteLine($"Error fetching test object: {e.Message}");
+            testObjectApiResponse = new ApiResponse<TestObjectDto>()
+            {
+                StatusCode = 408,
+                ErrorMessage = "Test object service is currently unavailable. Please try again later."
+            };
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine($"Error fetching test object: {e.Message}");
+            throw;
+        }
 
-
+        try
+        {
             Console.WriteLine("Fetching test results");
             // Fetch LeakTests
             const string
                 key = "TestObjectId"; // LeakTestService needs to know what LeakTest attribute it should retrieve data for. 
             var value = id; // LeakTestService needs to know what the value of the key is. 
             
-
             var leakTestServiceResponse = await _leakTestProducer.SendMessage($"{key};{value}", leakTestQueueName, leakTestRoutingKey);
-            var leakTestApiResponse = TrySerializeLeakTestServiceResponse(leakTestServiceResponse);
-
+            leakTestApiResponse = TrySerializeLeakTestServiceResponse(leakTestServiceResponse);
+        }
+        catch (TimeoutException e)
+        {
+            Console.WriteLine($"Error fetching test results: {e.Message}");
+            leakTestApiResponse = new ApiResponse<List<LeakTestDto>>()
+            {
+                StatusCode = 408,
+                ErrorMessage = "Test object service is currently unavailable. Please try again later."
+            };
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine($"Error fetching test results: {e.Message}");
+            throw;
+        }
+        try
+        {
             // Create the aggregated DTO
             var aggregatedResponse = CreateTestObjectWithResultsDto(leakTestApiResponse, testObjectApiResponse);
 
@@ -53,7 +89,7 @@ public class AggregationService : IAggregationService
             {
                 StatusCode = 400,
                 Data = null,
-                ErrorMessage = "No data matched the provided id"
+                ErrorMessage = e.Message
             };
         }
         catch (Exception e)
@@ -102,8 +138,13 @@ public class AggregationService : IAggregationService
 
             if (leakTestApiResponse.StatusCode != 200 && testObjectApiResponse.StatusCode != 200)
             {
-                Console.WriteLine("No data matched the provided id.");
-                throw new DataAggregationFailedException("No data matched the provide id");
+                var combinedErrorMessage = new StringBuilder();
+                combinedErrorMessage = combinedErrorMessage.Append(testObjectApiResponse.ErrorMessage)
+                    .Append(leakTestApiResponse.ErrorMessage);
+                Console.WriteLine($"None of the services return 200 OK. TestObjectService returned: {testObjectApiResponse.StatusCode} with message: {testObjectApiResponse.ErrorMessage}. " +
+                                  $"LeakTestService returned: {leakTestApiResponse.StatusCode} with message: {leakTestApiResponse.ErrorMessage}.");
+                throw new DataAggregationFailedException($"Could not fetch message due to the follow error(s): " +
+                                                         $"{combinedErrorMessage}");
             }
 
             if (leakTestApiResponse.StatusCode != 200 && testObjectApiResponse.StatusCode == 200)
@@ -117,7 +158,8 @@ public class AggregationService : IAggregationService
                     StatusCode = 203,
                     Data = testObjectWithResultsDto,
                     ErrorMessage =
-                        $"No test data matched the provided test object id {testObjectApiResponse.Data.Id}. Only the requested test object could be returned."
+                        $"No test data matched the provided test object id {testObjectApiResponse.Data.Id}. " +
+                        $"Only the requested test object could be returned. {leakTestApiResponse.ErrorMessage}"
                 };
             }
 
@@ -133,7 +175,8 @@ public class AggregationService : IAggregationService
                     StatusCode = 203,
                     Data = testObjectWithResultsDto,
                     ErrorMessage =
-                        $"No test object matched the provided test object id {leakTestApiResponse.Data.SingleOrDefault().LeakTestId}. Only the requested test data could be returned."
+                        $"No test object matched the provided test object id {leakTestApiResponse.Data.SingleOrDefault().LeakTestId}. " +
+                        $"Only the requested test data could be returned. {testObjectApiResponse.ErrorMessage}"
                 };
             }
             else
