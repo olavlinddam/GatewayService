@@ -35,8 +35,8 @@ public class LeakTestServiceController : GatewayControllerBase
             var response = await _leakTestProducer.SendMessage(leakTestDto, queueName, routingKey);
 
             var apiResponse = JsonSerializer.Deserialize<ApiResponse<LeakTestDto>>(response);
-
-            if (apiResponse.ErrorMessage.StartsWith("LeakTest object could not be validated"))
+            
+            if (apiResponse.ErrorMessage != null)
             {
                 return BadRequestWithDetails(apiResponse.ErrorMessage, "Single test result", "N/A");
             }

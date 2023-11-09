@@ -33,7 +33,7 @@ public class TestObjectServiceController : GatewayControllerBase
     [HttpGet("TestObjectWithTestResults/{id:guid}")]
     public async Task<IActionResult> GetTestObjectWithTestResults(Guid id)
     {
-        Console.WriteLine("Endpont hit: TestObjectWithTestResults" + DateTime.Now.Second);
+        Console.WriteLine("Endpoint hit: TestObjectWithTestResults" + DateTime.Now.Second);
         var apiResponse = await _aggregationService.GetTestObjectWithResults(id);
 
         Console.WriteLine("Response fetched. Returning test object with results.");
