@@ -63,7 +63,7 @@ public class AggregationService : IAggregationService
         }
         catch (TimeoutException e)
         {
-            Console.WriteLine($"Error fetching test results: {e.Message}");
+            Console.WriteLine($"Error fetching test results: haloooouu");
             leakTestApiResponse = new ApiResponse<List<LeakTestDto>>()
             {
                 StatusCode = 408,
