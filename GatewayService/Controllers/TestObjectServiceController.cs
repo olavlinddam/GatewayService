@@ -33,8 +33,10 @@ public class TestObjectServiceController : GatewayControllerBase
     [HttpGet("TestObjectWithTestResults/{id:guid}")]
     public async Task<IActionResult> GetTestObjectWithTestResults(Guid id)
     {
+        Console.WriteLine("Endpont hit: TestObjectWithTestResults" + DateTime.Now.Second);
         var apiResponse = await _aggregationService.GetTestObjectWithResults(id);
 
+        Console.WriteLine("Response fetched. Returning test object with results.");
         return Ok(apiResponse);
     }
     
@@ -266,8 +268,54 @@ public class TestObjectServiceController : GatewayControllerBase
             return BadRequestWithDetails($"The request could not be processed due to: {e.Message}");
         }
     }
-    
-    
+
+
+    [HttpGet]
+    public async Task<IActionResult> GetAll()
+    {
+        Console.WriteLine("Endpoint hit");
+        const string queueName = "get-all-test-objects-requests";
+        const string routingKey = "get-all-test-objects-route";
+
+        try
+        {
+            var response = await _testObjectProducer.SendMessage("getAll", queueName, routingKey);
+
+            var apiResponse = JsonSerializer.Deserialize<ApiResponse<List<TestObjectDto>>>(response);
+            if (apiResponse == null)
+            {
+                return BadRequest("Invalid response from the service.");
+            }
+
+            if (apiResponse.StatusCode != 200)
+            {
+                return StatusCode(apiResponse.StatusCode, apiResponse.ErrorMessage);
+            }
+
+            // Add HATEOAS links for each object if necessary
+            var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
+            apiResponse.Data.ForEach(to =>
+            {
+                to.Links = new Dictionary<string, string>
+            {
+                { "self", $"{baseUrl}/api/TestObjects/{to.Id}" }
+            };
+            });
+
+            // Return the list of test objects
+            return Ok(apiResponse);
+        }
+        catch (TimeoutException e)
+        {
+            return TimedOutRequestWithDetails(e.Message, "All test objects", null);
+        }
+        catch (Exception e)
+        {
+            return BadRequestWithDetails($"The request could not be processed due to: {e.Message}");
+        }
+    }
+
+
     #endregion
-    
+
 }
