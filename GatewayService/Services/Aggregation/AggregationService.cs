@@ -183,10 +183,11 @@ public class AggregationService : IAggregationService
             {
                 var testObjectWithResultsDto = new TestObjectWithResultsDto
                 {
-                    TestObjectDto = testObjectApiResponse.Data, LeakTestDto = leakTestApiResponse.Data 
+                    TestObjectDto = testObjectApiResponse.Data, 
+                    LeakTestDto = leakTestApiResponse.Data
                 };
 
-                return new ApiResponse<TestObjectWithResultsDto>() { Data = testObjectWithResultsDto };
+                return new ApiResponse<TestObjectWithResultsDto>() { Data = testObjectWithResultsDto ,StatusCode = 200};
             }
         }
         catch (DataAggregationFailedException e)
