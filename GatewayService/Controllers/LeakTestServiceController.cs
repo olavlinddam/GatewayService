@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
 using GatewayService.Models.DTOs;
 using GatewayService.Services.RabbitMq;
@@ -80,6 +81,15 @@ public class LeakTestServiceController : GatewayControllerBase
             var response = await _leakTestProducer.SendMessage(leakTestDtos, queueName, routingKey);
 
             var apiResponse = JsonSerializer.Deserialize<ApiResponse<List<LeakTestDto>>>(response);
+
+            if (apiResponse.StatusCode == 400 && apiResponse.ErrorMessage.StartsWith("Please provide a reason"))
+            {
+                string pattern = @"<(.+?)>";
+                Match match = Regex.Match(apiResponse.ErrorMessage, pattern);
+
+                const string? item = "Batch of test results";
+                return BadRequestWithDetails(apiResponse.ErrorMessage, id: match.Groups[1].Value);
+            }
             
             var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
             foreach (var leakTestDto in apiResponse.Data)

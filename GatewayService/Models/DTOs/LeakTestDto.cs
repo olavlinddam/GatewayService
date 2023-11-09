@@ -8,7 +8,7 @@ public class LeakTestDto
     public Guid MachineId { get; set;  } 
     public string TestObjectType { get; set; } 
     public string User { get; set; } 
-    public string SniffingPoint { get; set; } 
+    public Guid SniffingPoint { get; set; } 
     public string? Reason { get; set; } 
     public Guid? LeakTestId { get; set; }
     public string? Measurement { get; set; } 
