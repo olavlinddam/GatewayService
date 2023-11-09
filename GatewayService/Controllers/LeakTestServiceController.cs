@@ -21,6 +21,7 @@ public class LeakTestServiceController : GatewayControllerBase
     [HttpGet("test")]
     public string Test()
     {
+        
         return "test"; 
     }
     
@@ -34,7 +35,11 @@ public class LeakTestServiceController : GatewayControllerBase
             var response = await _leakTestProducer.SendMessage(leakTestDto, queueName, routingKey);
 
             var apiResponse = JsonSerializer.Deserialize<ApiResponse<LeakTestDto>>(response);
-            
+
+            if (apiResponse.ErrorMessage.StartsWith("LeakTest object could not be validated"))
+            {
+                return BadRequestWithDetails(apiResponse.ErrorMessage, "Single test result", "N/A");
+            }
             var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
             apiResponse.Data.Links = new Dictionary<string, string>()
             {
