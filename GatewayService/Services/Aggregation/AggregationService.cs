@@ -10,10 +10,6 @@ public class AggregationService : IAggregationService
 {
     private readonly IProducer _leakTestProducer;
     private readonly IProducer _testObjectProducer;
-    
-    // Semaphore to control concurrency across the producers
-    private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1); // Allows up to 1 concurrent operations
-
 
     public AggregationService(IProducer testObjectTestProducer, IProducer leakTestProducer)
     {
@@ -35,12 +31,7 @@ public class AggregationService : IAggregationService
         {
             // Fetch TestObject
             Console.WriteLine("Fetching test object.");
-
-            // Wait for the semaphore to become available before proceeding.
-            // This ensures that only one SendMessage operation is in progress at a time.
-            await _semaphore.WaitAsync();
-
-            // Once the semaphore is acquired, proceed with sending the message.
+            
             var testObjectServiceResponse =
                 await _testObjectProducer.SendMessage(id, testObjQueueName, testObjRoutingKey);
             testObjectApiResponse = TrySerializeTestObjectResponse(testObjectServiceResponse);
@@ -59,12 +50,6 @@ public class AggregationService : IAggregationService
             Console.WriteLine($"Error fetching test object: {e.Message}");
             throw;
         }
-        finally
-        {
-            // Release the semaphore after the operation is complete.
-            // This is crucial to ensure that other waiting operations can proceed.
-            _semaphore.Release();
-        }
 
         try
         {
@@ -74,13 +59,10 @@ public class AggregationService : IAggregationService
                 key = "TestObjectId"; // LeakTestService needs to know what LeakTest attribute it should retrieve data for. 
             var value = id; // LeakTestService needs to know what the value of the key is. 
             
-            
-            // Wait for the semaphore to become available before proceeding.
-            // This ensures that only one SendMessage operation is in progress at a time.
-            await _semaphore.WaitAsync();
+            await Task.Delay(TimeSpan.FromSeconds(1)); // Delays for 1 second
+
             
             var leakTestServiceResponse = await _leakTestProducer.SendMessage($"{key};{value}", leakTestQueueName, leakTestRoutingKey);
-            await Task.Delay(TimeSpan.FromSeconds(1)); // Delays for 1 second
 
             leakTestApiResponse = TrySerializeLeakTestServiceResponse(leakTestServiceResponse);
         }
@@ -97,11 +79,6 @@ public class AggregationService : IAggregationService
         {
             Console.WriteLine($"Error fetching test results: {e.Message}");
             throw;
-        }
-        finally
-        {
-            // Always release the semaphore, even if an exception occurs.
-            _semaphore.Release();
         }
         
         try
