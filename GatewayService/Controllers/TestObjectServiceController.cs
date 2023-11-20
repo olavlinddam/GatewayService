@@ -63,7 +63,7 @@ public class TestObjectServiceController : GatewayControllerBase
             // Check if the Data in ApiResponse is not null
             if(apiResponse.Data == null)
             {
-                return BadRequest("Data in the response was null.");
+                return BadRequest(apiResponse.ErrorMessage);
             }
 
             var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";

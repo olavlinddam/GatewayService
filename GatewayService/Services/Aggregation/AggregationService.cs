@@ -161,7 +161,7 @@ public class AggregationService : IAggregationService
                     { TestObjectDto = testObjectApiResponse.Data };
                 return new ApiResponse<TestObjectWithResultsDto>()
                 {
-                    StatusCode = 203,
+                    StatusCode = 206,
                     Data = testObjectWithResultsDto,
                     ErrorMessage =
                         $"No test data matched the provided test object id {testObjectApiResponse.Data.Id}. " +
@@ -178,7 +178,7 @@ public class AggregationService : IAggregationService
                     { LeakTestDto = leakTestApiResponse.Data };
                 return new ApiResponse<TestObjectWithResultsDto>
                 {
-                    StatusCode = 203,
+                    StatusCode = 206,
                     Data = testObjectWithResultsDto,
                     ErrorMessage =
                         $"No test object matched the provided test object id {leakTestApiResponse.Data.SingleOrDefault().LeakTestId}. " +
