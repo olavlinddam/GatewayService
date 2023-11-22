@@ -5,6 +5,7 @@ using GatewayService.Services.Aggregation;
 using GatewayService.Services.RabbitMq;
 using GatewayService.Services.Retry;
 using GatewayService.StartUp;
+using Signature;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -55,6 +56,8 @@ if (app.Environment.IsDevelopment())
 }
 
 // app.UseHttpsRedirection();
+
+app.UseProxySignature();
 
 app.UseAuthorization();
 
