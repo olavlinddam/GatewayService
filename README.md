@@ -1,4 +1,4 @@
-# GatewayService
+# GatewayService - school project
 
 The GatewayService serves as the single entry point to two key services: [LeakTestService](https://github.com/olavlinddam/LeakTestService) and [TestObjectService](https://github.com/olavlinddam/TestObjectService). It acts as a unified access point for the rest of the backend. The services are containerized and set up as a Docker Swarm to ensure stability and high availability. They communicate via RabbitMQ which makes the application services highly decoupled.
 
